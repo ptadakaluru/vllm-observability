@@ -1,0 +1,227 @@
+{
+  "uid": "vllm-observability",
+  "title": "vLLM Observability (Model Comparison)",
+  "tags": ["vllm", "llm", "prometheus"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "vllm_model",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+        "query": { "query": "label_values(up, vllm_model)" },
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+        "query": {
+          "query": "label_values(vllm:num_requests_running{vllm_model=~\"$vllm_model\"}, model_name)"
+        },
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests / sec (all handlers)",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{vllm_model=~\"$vllm_model\"}[1m]))",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "2xx / sec",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{vllm_model=~\"$vllm_model\",status=\"2xx\"}[1m]))",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "4xx / sec",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{vllm_model=~\"$vllm_model\",status=\"4xx\"}[1m]))",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Total tokens/sec (prompt+gen)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(vllm:prompt_tokens_total{vllm_model=~\"$vllm_model\",model_name=~\"$model\"}[1m])) + sum(rate(vllm:generation_tokens_total{vllm_model=~\"$vllm_model\",model_name=~\"$model\"}[1m]))",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests/sec by handler (split by model endpoint)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (vllm_model, handler, method, status) (rate(http_requests_total{vllm_model=~\"$vllm_model\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}} {{handler}} {{method}} {{status}}"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "HTTP Latency p95 (same panel, per model endpoint)",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_highr_seconds_bucket{vllm_model=~\"$vllm_model\"}[5m])) by (vllm_model, le))",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}} p95"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Tokens/sec (Prompt vs Generation) — compare models",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (vllm_model) (rate(vllm:prompt_tokens_total{vllm_model=~\"$vllm_model\",model_name=~\"$model\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}} prompt t/s"
+        },
+        {
+          "expr": "sum by (vllm_model) (rate(vllm:generation_tokens_total{vllm_model=~\"$vllm_model\",model_name=~\"$model\"}[1m]))",
+          "refId": "B",
+          "legendFormat": "{{vllm_model}} gen t/s"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Time To First Token p95 (same panel, per model endpoint)",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket{vllm_model=~\"$vllm_model\",model_name=~\"$model\"}[5m])) by (vllm_model, le))",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}} TTFT p95"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "vLLM Requests Running vs Waiting (summed across selected models)",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(vllm:num_requests_running{vllm_model=~\"$vllm_model\",model_name=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "running"
+        },
+        {
+          "expr": "sum(vllm:num_requests_waiting{vllm_model=~\"$vllm_model\",model_name=~\"$model\"})",
+          "refId": "B",
+          "legendFormat": "waiting"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "KV Cache Usage (%) — compare models",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 * avg by (vllm_model) (vllm:kv_cache_usage_perc{vllm_model=~\"$vllm_model\",model_name=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}} KV%"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Inter-token latency p95 — compare models",
+      "gridPos": { "x": 0, "y": 28, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:inter_token_latency_seconds_bucket{vllm_model=~\"$vllm_model\",model_name=~\"$model\"}[5m])) by (vllm_model, le))",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}} p95"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Request success rate by finished_reason — compare models",
+      "gridPos": { "x": 12, "y": 28, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (vllm_model, finished_reason) (rate(vllm:request_success_total{vllm_model=~\"$vllm_model\",model_name=~\"$model\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}} {{finished_reason}}"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Process CPU seconds/sec (approx CPU usage) — compare models",
+      "gridPos": { "x": 0, "y": 36, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{vllm_model=~\"$vllm_model\"}[1m])",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}}"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Process Resident Memory (bytes) — compare models",
+      "gridPos": { "x": 12, "y": 36, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{vllm_model=~\"$vllm_model\"}",
+          "refId": "A",
+          "legendFormat": "{{vllm_model}}"
+        }
+      ]
+    }
+  ],
+  "annotations": { "list": [] }
+}

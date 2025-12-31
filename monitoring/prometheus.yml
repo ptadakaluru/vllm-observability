@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "ngrok-metrics-gemma2b"
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 4056d8e6002e.ngrok-free.app
+        labels:
+          vllm_model: "gemma2b"
+
+  - job_name: "ngrok-metrics-qwen2.5b"
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 5c8fad4b9f73.ngrok-free.app
+        labels:
+          vllm_model: "qwen2.5b"
+
+    tls_config:
+      insecure_skip_verify: false
+      # insecure_skip_verify: true
