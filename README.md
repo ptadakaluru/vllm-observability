@@ -34,6 +34,141 @@ Google Colab notebooks to bootstrap and run the local LLM environment
 | `vLLM-qwen/VLLM_Qwen2.5.ipynb`                                  | Google Colab notebook that launches the Qwen LLM with vLLM and exposes inference and metrics endpoints.        |
 
 
+Prerequisites
+
+Docker Desktop running
+
+Ports available:
+
+9090 → Prometheus
+
+3000 → Grafana
+
+You are in the repo root (where monitoring/ exists)
+
+Step 1: Create Docker network (one time)
+docker network create monitoring
+
+
+(If it already exists, Docker will just warn — that’s fine.)
+
+Step 2: Start Prometheus using your existing prometheus.yml
+
+From the repo root:
+
+docker run -d --name prometheus \
+  --network monitoring \
+  -p 9090:9090 \
+  -v "$PWD/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+  prom/prometheus:latest
+
+Verify Prometheus
+
+Open: http://localhost:9090
+
+Go to Status → Targets
+
+You should see:
+
+ngrok-metrics-gemma2b
+
+ngrok-metrics-qwen2.5b
+
+Both should be UP
+
+Quick sanity query:
+
+count by (vllm_model) (up)
+
+Step 3: Start Grafana using your existing provisioning + dashboards
+
+⚠️ Do not change any files — we will mount exactly what you already have.
+
+From the repo root:
+
+docker run -d --name grafana \
+  --network monitoring \
+  -p 3000:3000 \
+  -e GF_SECURITY_ADMIN_USER=admin \
+  -e GF_SECURITY_ADMIN_PASSWORD=admin \
+  -v "$PWD/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro" \
+  -v "$PWD/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro" \
+  grafana/grafana:latest
+
+Step 4: Verify Grafana (no UI configuration required)
+
+Open: http://localhost:3000
+
+Login: admin / admin
+
+Navigate to:
+
+Dashboards → vLLM → vLLM Observability (Model Comparison)
+
+✔ Datasource is already configured
+✔ Dashboard auto-loaded
+✔ Model comparison works out of the box
+
+What each file is doing (based on your repo)
+monitoring/prometheus.yml
+
+Scrapes multiple vLLM endpoints
+
+Adds:
+
+labels:
+  vllm_model: gemma2b
+
+
+This is the key enabler for model comparison
+
+grafana/provisioning/datasources/prometheus-ds.yml
+
+Creates Prometheus datasource automatically
+
+Uses Docker network name:
+
+http://prometheus:9090
+
+
+Sets a fixed UID so dashboards bind cleanly
+
+grafana/provisioning/dashboards/dashboards.yml
+
+Tells Grafana:
+
+Load dashboards from /var/lib/grafana/dashboards
+
+Place them in Grafana folder: vLLM
+
+grafana/dashboards/vllm-observability.json
+
+The actual dashboard
+
+Uses:
+
+vllm_model → endpoint/model comparison
+
+model_name → internal vLLM model labels
+
+Panels already compare:
+
+HTTP latency p95
+
+Prompt & generation tokens/sec
+
+TTFT p95
+
+KV cache usage
+
+Inter-token latency
+
+Success/failure reasons
+
+Common operations (based on your setup)
+Restart after config change
+docker restart prometheus
+docker restart grafana
 
 🔮 Future Enhancements
 
