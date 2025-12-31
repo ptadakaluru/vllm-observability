@@ -12,24 +12,8 @@ Grafana for visualization and observability
 
 Google Colab notebooks to bootstrap and run the local LLM environment
 
-🧩 Architecture Overview
-┌──────────────┐
-│  vLLM Server │
-│  (LLM API)   │
-│  /metrics    │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│ Prometheus   │
-│  :9090       │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│ Grafana      │
-│  :3000       │
-└──────────────┘
+<img width="272" height="563" alt="image" src="https://github.com/user-attachments/assets/99b023dc-d177-4020-94d0-63f41b845e71" />
+
 
 📁 Repository Structure
 monitoring/
